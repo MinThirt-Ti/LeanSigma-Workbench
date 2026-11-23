@@ -1,0 +1,6 @@
+Step,Cycle_Sec,Changeover_Min,Uptime_Pct,Operators,Queue_Hrs
+Blanking,35,12,97,1,3.5
+Stamping,62,28,91,2,6.0
+Heat Treat,88,15,95,1,8.5
+Grind,54,18,93,2,4.0
+Final Test,40,5,99,1,2.0

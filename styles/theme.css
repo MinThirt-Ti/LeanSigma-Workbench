@@ -1,0 +1,392 @@
+/* Strict opaque tactile industrial design tokens */
+:root {
+  --bg-canvas: #0A113E;
+  --bg-card: #111952;
+  --bg-panel: #182268;
+  --border-struct: #253182;
+  --color-crimson: #B42754;
+  --color-icemint: #B4DDD8;
+  --color-magenta: #D929CF;
+  --color-indigo: #3B2F9A;
+  --color-copper: #B97232;
+  --color-emerald: #45E1A5;
+  --color-teal: #59A8A2;
+  --color-olive: #579200;
+  --color-rose: #E9C7C5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background-color: var(--bg-canvas);
+  color: var(--color-icemint);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
+}
+
+.ind-well svg {
+  max-height: 70vh;
+}
+
+/* Tactile industrial range sliders (no gradients, solid precision thumbs) */
+input[type="range"].ind-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  background: #0A113E;
+  border: 2px solid #253182;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"].ind-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: #45E1A5;
+  border: 2px solid #0A113E;
+  cursor: grab;
+}
+
+input[type="range"].ind-slider::-webkit-slider-thumb:hover {
+  background: #D929CF;
+}
+
+input[type="range"].ind-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  background: #E9C7C5;
+}
+
+input[type="range"].ind-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: #45E1A5;
+  border: 2px solid #0A113E;
+  cursor: grab;
+}
+
+/* Solid industrial inputs */
+.ind-input {
+  background-color: #0A113E;
+  border: 2px solid #253182;
+  color: #E9C7C5;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+.ind-input:focus {
+  border-color: #D929CF;
+}
+
+.ind-input-text {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  color: #B4DDD8;
+}
+
+/* Structural panels and buttons */
+.ind-card {
+  background-color: #111952;
+  border: 2px solid #253182;
+  border-radius: 8px;
+}
+
+.ind-well {
+  background-color: #0A113E;
+  border: 2px solid #253182;
+  border-radius: 8px;
+}
+
+.ind-btn {
+  background-color: #182268;
+  border: 2px solid #253182;
+  color: #B4DDD8;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.ind-btn:hover {
+  background-color: #3B2F9A;
+  border-color: #D929CF;
+  color: #E9C7C5;
+}
+
+.ind-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ind-btn-primary {
+  background-color: #3B2F9A;
+  border: 2px solid #D929CF;
+  color: #E9C7C5;
+}
+
+.ind-btn-primary:hover {
+  background-color: #D929CF;
+  border-color: #E9C7C5;
+  color: #0A113E;
+}
+
+.ind-btn-ok {
+  background-color: #111952;
+  border: 2px solid #45E1A5;
+  color: #45E1A5;
+}
+
+.ind-btn-ok:hover {
+  background-color: #45E1A5;
+  color: #0A113E;
+}
+
+.ind-btn-danger {
+  background-color: #111952;
+  border: 2px solid #B42754;
+  color: #E9C7C5;
+}
+
+.ind-btn-danger:hover {
+  background-color: #B42754;
+  color: #FFFFFF;
+}
+
+/* Segmented Mode Pills */
+.mode-switch {
+  display: inline-flex;
+  background-color: #0A113E;
+  border: 2px solid #253182;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #59A8A2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.mode-pill:hover {
+  color: #E9C7C5;
+}
+
+.mode-pill.active {
+  background-color: #3B2F9A;
+  border-color: #D929CF;
+  color: #E9C7C5;
+}
+
+/* Left rail tab states */
+.rail-tab {
+  background-color: #111952;
+  border: 2px solid transparent;
+  color: #B4DDD8;
+  border-radius: 6px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.rail-tab:hover {
+  background-color: #182268;
+  border-color: #253182;
+}
+
+.rail-tab.active {
+  background-color: #182268;
+  border-color: #D929CF;
+  color: #E9C7C5;
+}
+
+.rail-tab .tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background-color: #253182;
+  flex-shrink: 0;
+}
+
+.rail-tab.active .tab-dot {
+  background-color: #45E1A5;
+}
+
+.kbd-chip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background-color: #0A113E;
+  border: 1px solid #253182;
+  color: #59A8A2;
+}
+
+.rail-tab.active .kbd-chip {
+  border-color: #D929CF;
+  color: #E9C7C5;
+}
+
+/* Universal Data Import Modal / Drawer */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background-color: rgba(6, 10, 38, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-backdrop.hidden {
+  display: none;
+}
+
+.modal-panel {
+  background-color: #111952;
+  border: 2px solid #D929CF;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 960px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dropzone {
+  background-color: #0A113E;
+  border: 2px dashed #253182;
+  border-radius: 8px;
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.dropzone:hover,
+.dropzone.dragover {
+  border-color: #45E1A5;
+  background-color: #182268;
+}
+
+/* Interactive SVG drag affordances */
+.drag-ew {
+  cursor: ew-resize;
+}
+.drag-curve {
+  cursor: grab;
+}
+.drag-curve:active {
+  cursor: grabbing;
+}
+
+/* 5S Tactile Score Buttons */
+.score-btn {
+  width: 32px;
+  height: 30px;
+  border: 2px solid #253182;
+  background-color: #0A113E;
+  color: #B4DDD8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.score-btn:hover {
+  border-color: #59A8A2;
+}
+.score-btn.selected {
+  background-color: #45E1A5;
+  border-color: #45E1A5;
+  color: #0A113E;
+}
+
+/* Custom subtle scrollbar for dark industrial tables */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0A113E;
+}
+::-webkit-scrollbar-thumb {
+  background: #253182;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3B2F9A;
+}
+
+/* Clean Light-Mode Print Layout for Executive Reporting */
+@media print {
+  html, body {
+    background: #FFFFFF !important;
+    color: #0A113E !important;
+  }
+  #top-bar, #left-rail, #import-modal, #toast-bar, .no-print {
+    display: none !important;
+  }
+  #main-workspace {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  .module-section {
+    display: block !important;
+    page-break-after: always;
+    margin-bottom: 24px;
+  }
+  #module-export {
+    display: none !important;
+  }
+  .ind-card, .ind-well {
+    background: #FFFFFF !important;
+    color: #0A113E !important;
+    border: 2px solid #253182 !important;
+    break-inside: avoid;
+  }
+  .ind-card *, .ind-well * {
+    color: #0A113E !important;
+  }
+  .ind-well svg {
+    background: #0A113E !important;
+    border-radius: 6px;
+  }
+  .ind-well svg text {
+    color: inherit !important;
+  }
+}

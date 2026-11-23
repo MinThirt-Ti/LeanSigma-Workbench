@@ -1,0 +1,11 @@
+Defect_Reason,Scrap_Cost_USD,Line
+Burr,$48,Cell-1
+Burr,$55,Cell-1
+Scratch,$32,Cell-2
+Tolerance,$215,Cell-2
+Burr,$42,Cell-2
+Tolerance,$190,Cell-2
+Torque,$88,Cell-1
+Tolerance,$240,Cell-1
+Scratch,$29,Cell-1
+Finish,$64,Cell-2

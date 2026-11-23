@@ -1,0 +1,5 @@
+Date,Shift,Line,Planned_Min,Downtime_Min,Cycle_Sec,Total_Output,Scrap_Qty
+2026-11-20,Day,Line-A,480,28,24,1040,14
+2026-11-20,Night,Line-A,480,52,24,950,22
+2026-11-21,Day,Line-B,480,19,24,1090,9
+2026-11-21,Night,Line-B,480,44,24,990,18

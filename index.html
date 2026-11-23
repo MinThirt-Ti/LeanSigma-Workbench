@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeanSigma</title>
+  <link rel="icon" href="./favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <!-- Load Tailwind CSS for responsive layout utilities -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              canvas: '#0A113E',
+              card: '#111952',
+              panel: '#182268',
+              border: '#253182',
+            },
+            crimson: '#B42754',
+            icemint: '#B4DDD8',
+            magenta: '#D929CF',
+            indigo: {
+              royal: '#3B2F9A',
+            },
+            copper: '#B97232',
+            emerald: {
+              mint: '#45E1A5',
+            },
+            teal: {
+              slate: '#59A8A2',
+            },
+            olive: '#579200',
+            rose: {
+              dusty: '#E9C7C5',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="./styles/theme.css" />
+  <!-- SheetJS for browser-local .xlsx / .xls parsing -->
+  <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP HEADER BAR -->
+  <header id="top-bar" class="bg-navy-card border-b-2 border-navy-border px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 xl:sticky xl:top-0 z-30">
+    <div class="flex items-center gap-3 min-w-0">
+      <div>
+        <h1 class="text-base sm:text-lg font-bold tracking-wider text-rose-dusty leading-none">
+          LEANSIGMA
+        </h1>
+        <span id="header-active-label" class="text-xs font-mono text-teal-slate">
+          Capability
+        </span>
+      </div>
+    </div>
+
+    <!-- Import & Workspace JSON Controls -->
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" id="btn-open-import" class="ind-btn ind-btn-primary" title="Import Excel / CSV or paste cells (Shortcut: i)">
+        Import Data
+      </button>
+      <button type="button" id="btn-quick-json-save" class="ind-btn" title="Save workspace JSON">
+        Save JSON
+      </button>
+      <button type="button" id="btn-quick-json-load" class="ind-btn" title="Load workspace JSON">
+        Load JSON
+      </button>
+      <input type="file" id="global-json-file-input" accept=".json,application/json" class="hidden" />
+    </div>
+  </header>
+
+  <!-- INLINE NOTIFICATION TOAST BANNER -->
+  <div id="toast-bar" class="hidden fixed bottom-4 right-4 z-50 bg-navy-panel border-2 border-emerald-mint text-rose-dusty px-4 py-2.5 rounded-md font-mono text-xs font-semibold shadow-lg flex items-center gap-3">
+    <span class="w-2.5 h-2.5 rounded-xs bg-emerald-mint inline-block" id="toast-dot"></span>
+    <span id="toast-message">Ready</span>
+  </div>
+
+  <!-- UNIVERSAL DATA IMPORT MODAL -->
+  <div id="import-modal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true" aria-labelledby="imp-modal-title">
+    <div class="modal-panel shadow-2xl">
+      <div class="px-5 py-3.5 border-b-2 border-navy-border flex items-center justify-between bg-navy-panel">
+        <div>
+          <h2 id="imp-modal-title" class="text-base font-bold uppercase tracking-wider text-rose-dusty">Import Spreadsheet / Clipboard Data</h2>
+          <p class="text-xs text-teal-slate font-mono">100% browser-local parsing (.xlsx, .xls, .csv, .tsv, or Ctrl+V from Excel)</p>
+        </div>
+        <button type="button" id="imp-btn-close" class="ind-btn py-1 px-3 text-xs">ESC</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 flex-1">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <label for="imp-target-module" class="text-xs font-bold uppercase text-rose-dusty">Target Module</label>
+            <select id="imp-target-module" class="ind-input ind-input-text text-xs">
+              <option value="capability">Capability (Measurements)</option>
+              <option value="oee">OEE (Shift Production Log)</option>
+              <option value="pareto">Pareto (Defect / Downtime Log)</option>
+              <option value="takt">Takt (Workstations)</option>
+              <option value="vsm">VSM (Process Steps)</option>
+            </select>
+          </div>
+          <button type="button" id="imp-btn-sample" class="ind-btn text-xs">Load Sample CSV</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div id="imp-dropzone" class="dropzone flex flex-col items-center justify-center gap-1.5">
+            <span class="text-sm font-bold text-emerald-mint">Drop .xlsx / .csv / .tsv file here</span>
+            <span class="text-xs text-teal-slate font-mono">or click to browse local disk</span>
+            <input type="file" id="imp-file-input" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden" />
+          </div>
+          <div class="space-y-1.5">
+            <label for="imp-paste-text" class="block text-xs font-bold uppercase text-rose-dusty">Or Paste Cells Directly From Excel / Sheets</label>
+            <textarea id="imp-paste-text" rows="4" placeholder="Paste Excel columns or CSV text here..." class="ind-input w-full text-xs font-mono resize-y"></textarea>
+          </div>
+        </div>
+
+        <!-- Optional Capability Spec Bounds -->
+        <div id="imp-cap-specs" class="ind-well p-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label for="imp-cap-label" class="block text-[11px] font-bold uppercase text-teal-slate mb-1">Characteristic Name</label>
+            <input id="imp-cap-label" type="text" class="ind-input ind-input-text w-full text-xs" placeholder="e.g. Bore Diameter" />
+          </div>
+          <div>
+            <label for="imp-cap-lsl" class="block text-[11px] font-bold uppercase text-teal-slate mb-1">Lower Spec Limit (LSL)</label>
+            <input id="imp-cap-lsl" type="number" step="any" class="ind-input w-full text-xs" />
+          </div>
+          <div>
+            <label for="imp-cap-usl" class="block text-[11px] font-bold uppercase text-teal-slate mb-1">Upper Spec Limit (USL)</label>
+            <input id="imp-cap-usl" type="number" step="any" class="ind-input w-full text-xs" />
+          </div>
+        </div>
+
+        <!-- Column Mapping Selectors -->
+        <div class="space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-xs font-bold uppercase text-rose-dusty">Sheet &amp; Column Mapping</h3>
+            <span id="imp-preview-meta" class="text-xs font-mono text-emerald-mint"></span>
+          </div>
+          <div id="imp-layout-bar" class="hidden ind-well p-2.5 flex flex-wrap items-center gap-4 text-xs">
+            <div id="imp-sheet-wrap" class="hidden flex items-center gap-2">
+              <label for="imp-sheet-select" class="font-bold uppercase text-teal-slate">Sheet</label>
+              <select id="imp-sheet-select" class="ind-input ind-input-text text-xs py-1"></select>
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer text-icemint">
+              <input id="imp-has-headers" type="checkbox" checked class="accent-emerald-mint w-4 h-4" />
+              <span class="font-semibold">First row is headers</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <label for="imp-header-row" class="font-bold uppercase text-teal-slate">Start Row #</label>
+              <input id="imp-header-row" type="number" min="1" value="1" class="ind-input w-16 text-right text-xs py-1" />
+            </div>
+          </div>
+          <div id="imp-mapper-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5"></div>
+        </div>
+
+        <!-- Preview Table -->
+        <div class="ind-well p-3 overflow-x-auto">
+          <table id="imp-preview-table" class="w-full text-left border-collapse"></table>
+        </div>
+      </div>
+
+      <div class="px-5 py-3 border-t-2 border-navy-border bg-navy-panel flex items-center justify-end gap-2.5">
+        <button type="button" id="imp-btn-cancel" class="ind-btn">Cancel</button>
+        <button type="button" id="imp-btn-apply" class="ind-btn ind-btn-primary" disabled>Import Into Module</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RAW DATA VIEWER MODAL -->
+  <div id="raw-data-modal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true" aria-labelledby="raw-modal-title">
+    <div class="modal-panel shadow-2xl">
+      <div class="px-5 py-3.5 border-b-2 border-navy-border flex items-center justify-between bg-navy-panel">
+        <div>
+          <h2 id="raw-modal-title" class="text-base font-bold uppercase tracking-wider text-rose-dusty">Raw Table Data</h2>
+          <p id="raw-modal-sub" class="text-xs text-teal-slate font-mono"></p>
+        </div>
+        <button type="button" id="raw-modal-close" class="ind-btn py-1 px-3 text-xs">Close</button>
+      </div>
+      <div class="p-4 overflow-auto flex-1">
+        <table id="raw-modal-table" class="w-full text-left border-collapse"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APPLICATION SHELL -->
+  <div class="flex-1 flex flex-col lg:flex-row min-h-0 min-w-0">
+
+    <!-- LEFT NAVIGATION RAIL (8 Atomic Tabs + Shortcut Hints) -->
+    <nav id="left-rail" aria-label="Module Navigation" class="bg-navy-card border-b-2 lg:border-b-0 lg:border-r-2 border-navy-border p-3 lg:w-48 shrink-0">
+      <div class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
+        <button type="button" class="rail-tab active" data-tab="capability">
+          <span class="flex items-center gap-2"><span class="kbd-chip">1</span><span>Capability</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <button type="button" class="rail-tab" data-tab="oee">
+          <span class="flex items-center gap-2"><span class="kbd-chip">2</span><span>OEE</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <button type="button" class="rail-tab" data-tab="takt">
+          <span class="flex items-center gap-2"><span class="kbd-chip">3</span><span>Takt</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <button type="button" class="rail-tab" data-tab="pareto">
+          <span class="flex items-center gap-2"><span class="kbd-chip">4</span><span>Pareto</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <button type="button" class="rail-tab" data-tab="vsm">
+          <span class="flex items-center gap-2"><span class="kbd-chip">5</span><span>VSM</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <button type="button" class="rail-tab" data-tab="fives">
+          <span class="flex items-center gap-2"><span class="kbd-chip">6</span><span>5S</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <button type="button" class="rail-tab" data-tab="ishikawa">
+          <span class="flex items-center gap-2"><span class="kbd-chip">7</span><span>Ishikawa</span></span>
+          <span class="tab-dot"></span>
+        </button>
+        <div class="hidden lg:block border-t border-navy-border my-1"></div>
+        <button type="button" class="rail-tab" data-tab="export">
+          <span class="flex items-center gap-2"><span class="kbd-chip">8</span><span>Data &amp; Export</span></span>
+          <span class="tab-dot"></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN WORKSPACE AREA -->
+    <main id="main-workspace" class="flex-1 min-w-0 p-4 sm:p-6 space-y-6">
+
+      <!-- ================================================================= -->
+      <!-- MODULE 1: CAPABILITY (Empirical Data + Interactive Simulator)     -->
+      <!-- ================================================================= -->
+      <section id="module-capability" class="module-section space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">Capability &amp; SPC</h2>
+            <p class="text-xs text-icemint mt-0.5">Analyze actual measurement samples (Cp/Cpk, Pp/Ppk, I-MR control) or simulate distributions interactively</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-capability"></span>
+              <button type="button" data-raw-mod="capability" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2.5 no-print">
+            <div class="mode-switch" role="group" aria-label="Capability Mode">
+              <button type="button" id="cap-mode-data" class="mode-pill active">Data Mode</button>
+              <button type="button" id="cap-mode-sim" class="mode-pill">Simulator</button>
+            </div>
+            <div id="cap-data-presets" class="flex flex-wrap items-center gap-2">
+              <span id="cap-ad-badge" class="px-2 py-1 text-[11px] font-mono font-bold rounded-xs bg-navy-canvas border border-emerald-mint text-emerald-mint">AD: Normal</span>
+              <div class="mode-switch" role="group" aria-label="Distribution Model">
+                <button type="button" id="cap-dist-auto" class="mode-pill active" title="Auto-select best fit by Anderson-Darling A²">Auto</button>
+                <button type="button" id="cap-dist-normal" class="mode-pill">Normal</button>
+                <button type="button" id="cap-dist-lognormal" class="mode-pill">Lognorm</button>
+                <button type="button" id="cap-dist-weibull" class="mode-pill">Weibull</button>
+                <button type="button" id="cap-dist-loglogistic" class="mode-pill">LogLog</button>
+                <button type="button" id="cap-dist-nonparam" class="mode-pill">Non-Param</button>
+              </div>
+              <button type="button" id="btn-cap-import" class="ind-btn ind-btn-primary">Import Measurements</button>
+            </div>
+            <div id="cap-sim-presets" class="hidden flex flex-wrap items-center gap-2">
+              <button type="button" class="ind-btn cap-preset" data-preset="centered">Centered</button>
+              <button type="button" class="ind-btn cap-preset" data-preset="shifted">Shifted</button>
+              <button type="button" class="ind-btn cap-preset" data-preset="tight">Tight</button>
+              <button type="button" class="ind-btn ind-btn-danger cap-preset" data-preset="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Atomic KPI Strip (6 Cards) -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div class="ind-card p-3.5 flex flex-col justify-between" id="cap-card-cp">
+            <div class="flex items-center justify-between">
+              <span id="cap-lbl-1" class="text-xs font-bold uppercase tracking-wider text-rose-dusty">Cp</span>
+              <span id="cap-badge-cp" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-emerald-mint text-emerald-mint">Capable</span>
+            </div>
+            <div id="cap-val-cp" class="font-mono text-2xl font-bold text-icemint mt-2">1.33</div>
+            <div id="cap-sub-cp" class="font-mono text-[11px] text-teal-slate mt-1"></div>
+          </div>
+
+          <div class="ind-card p-3.5 flex flex-col justify-between border-magenta" id="cap-card-cpk">
+            <div class="flex items-center justify-between">
+              <span id="cap-lbl-2" class="text-xs font-bold uppercase tracking-wider text-rose-dusty">Cpk</span>
+              <span id="cap-badge-cpk" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-emerald-mint text-emerald-mint">Capable</span>
+            </div>
+            <div id="cap-val-cpk" class="font-mono text-2xl font-bold text-emerald-mint mt-2">1.33</div>
+            <div id="cap-bottleneck" class="font-mono text-[11px] text-rose-dusty mt-1">Balanced</div>
+          </div>
+
+          <div class="ind-card p-3.5 flex flex-col justify-between" id="cap-card-cpu">
+            <div class="flex items-center justify-between">
+              <span id="cap-lbl-3" class="text-xs font-bold uppercase tracking-wider text-rose-dusty">Cpu</span>
+              <span id="cap-badge-cpu" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-navy-border text-icemint">Upper</span>
+            </div>
+            <div id="cap-val-cpu" class="font-mono text-2xl font-bold text-icemint mt-2">1.33</div>
+            <div id="cap-sub-cpu" class="font-mono text-[11px] text-teal-slate mt-1"></div>
+          </div>
+
+          <div class="ind-card p-3.5 flex flex-col justify-between" id="cap-card-cpl">
+            <div class="flex items-center justify-between">
+              <span id="cap-lbl-4" class="text-xs font-bold uppercase tracking-wider text-rose-dusty">Cpl</span>
+              <span id="cap-badge-cpl" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-navy-border text-icemint">Lower</span>
+            </div>
+            <div id="cap-val-cpl" class="font-mono text-2xl font-bold text-icemint mt-2">1.33</div>
+            <div id="cap-sub-cpl" class="font-mono text-[11px] text-teal-slate mt-1"></div>
+          </div>
+
+          <div class="ind-card p-3.5 flex flex-col justify-between" id="cap-card-ppm">
+            <div class="flex items-center justify-between">
+              <span id="cap-lbl-5" class="text-xs font-bold uppercase tracking-wider text-rose-dusty">PPM</span>
+              <span id="cap-badge-ppm" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-olive text-emerald-mint">Low</span>
+            </div>
+            <div id="cap-val-ppm" class="font-mono text-2xl font-bold text-icemint mt-2">63.3</div>
+            <div id="cap-yield" class="font-mono text-[11px] text-teal-slate mt-1"></div>
+          </div>
+
+          <div class="ind-card p-3.5 flex flex-col justify-between" id="cap-card-sigma">
+            <div class="flex items-center justify-between">
+              <span id="cap-lbl-6" class="text-xs font-bold uppercase tracking-wider text-rose-dusty">Sigma</span>
+              <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-navy-border text-icemint">Level</span>
+            </div>
+            <div id="cap-val-sigma" class="font-mono text-2xl font-bold text-emerald-mint mt-2">4.00σ</div>
+            <div id="cap-sub-sigma" class="font-mono text-[11px] text-teal-slate mt-1"></div>
+          </div>
+        </div>
+
+        <!-- SVG Distribution Canvas Well -->
+        <div class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <div id="cap-legend-sim" class="hidden flex flex-wrap items-center gap-4">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-xs bg-teal-slate border border-emerald-mint"></span> 1σ</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-xs bg-copper"></span> 2σ</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-xs bg-indigo-royal"></span> 3σ</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-xs bg-crimson"></span> Defect</span>
+            </div>
+            <div id="cap-legend-data" class="flex flex-wrap items-center gap-4">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-xs bg-teal-slate border border-emerald-mint"></span> Histogram</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-emerald-mint"></span> Overall Fit</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-icemint"></span> Within Fit</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-xs bg-crimson"></span> Out of Spec</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-magenta"></span> LSL / USL</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="cap-drag-status" class="text-emerald-mint">Ready</span>
+              <button type="button" data-mod="capability" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+              <button type="button" data-mod="capability" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+            </div>
+          </div>
+
+          <div class="ind-well p-2 relative">
+            <input id="cap-inline-edit" type="text" class="hidden absolute z-20 ind-input text-xs py-1 px-2 shadow-lg border-magenta" />
+            <svg id="svg-capability" viewBox="0 0 1000 490" class="w-full h-auto block select-none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="cap-defect-hatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                  <rect width="8" height="8" fill="#B42754" />
+                  <line x1="0" y1="0" x2="0" y2="8" stroke="#E9C7C5" stroke-width="2" />
+                </pattern>
+              </defs>
+              <rect x="0" y="0" width="1000" height="490" fill="#0A113E" />
+
+              <!-- SIMULATOR LAYER -->
+              <g id="cap-sim-root" class="hidden" data-export-hidden="true">
+                <g id="cap-grid"></g>
+                <g id="cap-fills" class="drag-curve">
+                  <path id="cap-fill-tl" fill="#3B2F9A" fill-opacity="0.45" />
+                  <path id="cap-fill-m32" fill="#3B2F9A" />
+                  <path id="cap-fill-m21" fill="#B97232" />
+                  <path id="cap-fill-m10" fill="#59A8A2" />
+                  <path id="cap-fill-p01" fill="#59A8A2" />
+                  <path id="cap-fill-p12" fill="#B97232" />
+                  <path id="cap-fill-p23" fill="#3B2F9A" />
+                  <path id="cap-fill-tr" fill="#3B2F9A" fill-opacity="0.45" />
+                </g>
+                <g id="cap-defects" style="pointer-events:none;">
+                  <path id="cap-defect-left" fill="url(#cap-defect-hatch)" stroke="#E9C7C5" stroke-width="1.2" />
+                  <path id="cap-defect-right" fill="url(#cap-defect-hatch)" stroke="#E9C7C5" stroke-width="1.2" />
+                </g>
+                <g id="cap-sigma-guides" stroke="#0A113E" stroke-width="1.4" style="pointer-events:none;"></g>
+                <g id="cap-outline-grp" class="drag-curve">
+                  <path id="cap-outline" fill="none" stroke="#45E1A5" stroke-width="3" stroke-linejoin="round" />
+                  <path id="cap-outline-hit" fill="none" stroke="transparent" stroke-width="24" />
+                </g>
+                <g id="cap-mu-grp" class="drag-ew">
+                  <line id="cap-mu-line" x1="500" y1="125" x2="500" y2="340" stroke="#E9C7C5" stroke-width="2" stroke-dasharray="5 4" />
+                  <line id="cap-mu-hit" x1="500" y1="115" x2="500" y2="370" stroke="transparent" stroke-width="24" />
+                  <g id="cap-mu-badge" transform="translate(500, 122)">
+                    <rect x="-42" y="-12" width="84" height="22" rx="4" fill="#182268" stroke="#45E1A5" stroke-width="1.5" />
+                    <text id="cap-mu-text" x="0" y="3" text-anchor="middle" fill="#45E1A5" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" font-weight="700">μ = 50.0</text>
+                  </g>
+                </g>
+                <line x1="60" y1="340" x2="940" y2="340" stroke="#B4DDD8" stroke-width="2" />
+                <g id="cap-ruler-grp" class="drag-curve">
+                  <rect id="cap-bar-m32" y="343" height="22" fill="#3B2F9A" />
+                  <rect id="cap-bar-m21" y="343" height="22" fill="#B97232" />
+                  <rect id="cap-bar-m10" y="343" height="22" fill="#59A8A2" />
+                  <rect id="cap-bar-p01" y="343" height="22" fill="#45E1A5" />
+                  <rect id="cap-bar-p12" y="343" height="22" fill="#B97232" />
+                  <rect id="cap-bar-p23" y="343" height="22" fill="#3B2F9A" />
+                  <g id="cap-bar-dividers" stroke="#0A113E" stroke-width="2"></g>
+                  <rect id="cap-bar-border" y="343" height="22" fill="none" stroke="#B4DDD8" stroke-width="1.2" />
+                </g>
+                <g id="cap-sigma-ticks" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" font-weight="700"></g>
+                <g id="cap-axis"></g>
+                <g id="cap-brackets">
+                  <g id="cap-brk-spec"></g>
+                  <g id="cap-brk-lower"></g>
+                  <g id="cap-brk-upper"></g>
+                  <g id="cap-brk-six"></g>
+                </g>
+                <g id="cap-lsl-grp" class="drag-ew">
+                  <line id="cap-lsl-line" x1="324" y1="115" x2="324" y2="412" stroke="#D929CF" stroke-width="2.5" stroke-dasharray="6 4" />
+                  <line id="cap-lsl-hit" x1="324" y1="108" x2="324" y2="418" stroke="transparent" stroke-width="26" />
+                  <g id="cap-lsl-badge" transform="translate(324, 152)">
+                    <rect x="-44" y="-12" width="88" height="24" rx="4" fill="#182268" stroke="#D929CF" stroke-width="2" />
+                    <text id="cap-lsl-text" x="0" y="4" text-anchor="middle" fill="#E9C7C5" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" font-weight="700">LSL 30.0</text>
+                  </g>
+                </g>
+                <g id="cap-usl-grp" class="drag-ew">
+                  <line id="cap-usl-line" x1="676" y1="115" x2="676" y2="412" stroke="#D929CF" stroke-width="2.5" stroke-dasharray="6 4" />
+                  <line id="cap-usl-hit" x1="676" y1="108" x2="676" y2="418" stroke="transparent" stroke-width="26" />
+                  <g id="cap-usl-badge" transform="translate(676, 152)">
+                    <rect x="-44" y="-12" width="88" height="24" rx="4" fill="#182268" stroke="#D929CF" stroke-width="2" />
+                    <text id="cap-usl-text" x="0" y="4" text-anchor="middle" fill="#E9C7C5" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" font-weight="700">USL 70.0</text>
+                  </g>
+                </g>
+              </g>
+
+              <!-- EMPIRICAL DATA MODE LAYER -->
+              <g id="cap-data-root"></g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Companion I-MR Run Chart (Data Mode) -->
+        <div id="cap-imr-card" class="ind-card p-4 space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Individuals (I-MR) Statistical Control Chart</span>
+            <div class="flex items-center gap-4">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-full bg-emerald-mint"></span> In Control</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block rounded-full bg-crimson"></span> OOC (Rule 1 / 8-pt Run)</span>
+            </div>
+          </div>
+          <div class="ind-well p-2">
+            <svg id="svg-capability-imr" viewBox="0 0 1000 270" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+        <!-- Data Mode Inputs & Raw Measurement Editor -->
+        <div id="cap-data-controls" class="ind-card p-4 space-y-4 no-print">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label for="cap-data-label" class="block text-xs font-bold uppercase text-rose-dusty mb-1">Characteristic</label>
+              <input id="cap-data-label" type="text" class="ind-input ind-input-text w-full" />
+            </div>
+            <div>
+              <label for="cap-data-unit" class="block text-xs font-bold uppercase text-rose-dusty mb-1">Unit</label>
+              <input id="cap-data-unit" type="text" class="ind-input ind-input-text w-full" placeholder="mm, g, um..." />
+            </div>
+            <div>
+              <label for="cap-data-lsl" class="block text-xs font-bold uppercase text-rose-dusty mb-1">LSL</label>
+              <input id="cap-data-lsl" type="number" step="any" class="ind-input w-full text-right" />
+            </div>
+            <div>
+              <label for="cap-data-usl" class="block text-xs font-bold uppercase text-rose-dusty mb-1">USL</label>
+              <input id="cap-data-usl" type="number" step="any" class="ind-input w-full text-right" />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="cap-data-raw" class="text-xs font-bold uppercase text-rose-dusty">Measurement Samples (comma, space, or newline separated)</label>
+              <button type="button" id="btn-cap-apply-raw" class="ind-btn ind-btn-ok py-1.5 px-3 text-xs">Apply Measurements</button>
+            </div>
+            <textarea id="cap-data-raw" rows="2" class="ind-input w-full text-xs font-mono resize-y"></textarea>
+          </div>
+        </div>
+
+        <!-- Simulator Parameter Controls -->
+        <div id="cap-sim-controls" class="hidden grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 no-print">
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="cap-in-mu" class="text-xs font-bold uppercase text-rose-dusty">Mean (μ)</label>
+              <input id="cap-in-mu" type="number" step="0.1" min="5" max="95" class="ind-input w-24 text-right" />
+            </div>
+            <input id="cap-sl-mu" type="range" step="0.1" min="5" max="95" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="cap-in-sigma" class="text-xs font-bold uppercase text-rose-dusty">Deviation (σ)</label>
+              <input id="cap-in-sigma" type="number" step="0.1" min="1.5" max="12" class="ind-input w-24 text-right" />
+            </div>
+            <input id="cap-sl-sigma" type="range" step="0.1" min="1.5" max="12" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="cap-in-lsl" class="text-xs font-bold uppercase text-rose-dusty">LSL</label>
+              <input id="cap-in-lsl" type="number" step="0.1" min="0" max="95" class="ind-input w-24 text-right" />
+            </div>
+            <input id="cap-sl-lsl" type="range" step="0.1" min="0" max="95" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="cap-in-usl" class="text-xs font-bold uppercase text-rose-dusty">USL</label>
+              <input id="cap-in-usl" type="number" step="0.1" min="5" max="100" class="ind-input w-24 text-right" />
+            </div>
+            <input id="cap-sl-usl" type="range" step="0.1" min="5" max="100" class="ind-slider" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 2: OEE (Overall Equipment Effectiveness)                   -->
+      <!-- ================================================================= -->
+      <section id="module-oee" class="module-section hidden space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">OEE</h2>
+            <p class="text-xs text-icemint mt-0.5">Multi-shift equipment effectiveness trend &amp; time loss waterfall</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-oee"></span>
+              <button type="button" data-raw-mod="oee" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2.5 no-print">
+            <div class="mode-switch" role="group" aria-label="OEE Mode">
+              <button type="button" id="oee-mode-log" class="mode-pill active">Shift Log</button>
+              <button type="button" id="oee-mode-single" class="mode-pill">Single Shift</button>
+            </div>
+            <div id="oee-log-toolbar" class="flex flex-wrap items-center gap-2">
+              <select id="oee-filter-line" aria-label="Filter by Line" class="ind-input ind-input-text text-xs py-1.5"></select>
+              <button type="button" id="btn-oee-import" class="ind-btn ind-btn-primary">Import Shift Log</button>
+            </div>
+            <div id="oee-single-presets" class="hidden flex flex-wrap items-center gap-2">
+              <button type="button" class="ind-btn oee-preset" data-preset="world">World Class</button>
+              <button type="button" class="ind-btn oee-preset" data-preset="average">Average</button>
+              <button type="button" class="ind-btn oee-preset" data-preset="bottleneck">Bottlenecked</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Atomic OEE KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div class="ind-card p-4 border-magenta space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-rose-dusty">OEE</span>
+              <span id="oee-badge-main" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs bg-navy-canvas border border-emerald-mint text-emerald-mint">Target</span>
+            </div>
+            <div id="oee-val-main" class="font-mono text-2xl font-bold text-emerald-mint">71.5%</div>
+            <div class="w-full h-2.5 bg-navy-canvas border border-navy-border rounded-xs overflow-hidden">
+              <div id="oee-bar-main" class="h-full bg-emerald-mint" style="width: 71.5%"></div>
+            </div>
+          </div>
+
+          <div class="ind-card p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-rose-dusty">Availability</span>
+              <span id="oee-sub-avail" class="font-mono text-[11px] text-teal-slate">438m</span>
+            </div>
+            <div id="oee-val-avail" class="font-mono text-2xl font-bold text-icemint">91.3%</div>
+            <div class="w-full h-2.5 bg-navy-canvas border border-navy-border rounded-xs overflow-hidden">
+              <div id="oee-bar-avail" class="h-full bg-crimson" style="width: 91.3%"></div>
+            </div>
+          </div>
+
+          <div class="ind-card p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-rose-dusty">Performance</span>
+              <span id="oee-sub-perf" class="font-mono text-[11px] text-teal-slate">380m</span>
+            </div>
+            <div id="oee-val-perf" class="font-mono text-2xl font-bold text-icemint">86.8%</div>
+            <div class="w-full h-2.5 bg-navy-canvas border border-navy-border rounded-xs overflow-hidden">
+              <div id="oee-bar-perf" class="h-full bg-copper" style="width: 86.8%"></div>
+            </div>
+          </div>
+
+          <div class="ind-card p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-rose-dusty">Quality</span>
+              <span id="oee-sub-qual" class="font-mono text-[11px] text-teal-slate">18 scrap</span>
+            </div>
+            <div id="oee-val-qual" class="font-mono text-2xl font-bold text-icemint">97.6%</div>
+            <div class="w-full h-2.5 bg-navy-canvas border border-navy-border rounded-xs overflow-hidden">
+              <div id="oee-bar-qual" class="h-full bg-magenta" style="width: 97.6%"></div>
+            </div>
+          </div>
+
+          <div class="ind-card p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-rose-dusty">Good Units</span>
+              <span id="oee-sub-good" class="font-mono text-[11px] text-teal-slate">of 760</span>
+            </div>
+            <div id="oee-val-good" class="font-mono text-2xl font-bold text-emerald-mint">742</div>
+            <div class="w-full h-2.5 bg-navy-canvas border border-navy-border rounded-xs overflow-hidden">
+              <div id="oee-bar-good" class="h-full bg-olive" style="width: 97.6%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OEE Waterfall SVG -->
+        <div class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Time Loss Waterfall</span>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-crimson"></span> Availability Loss</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-copper"></span> Performance Loss</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-magenta"></span> Quality Loss</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-emerald-mint"></span> Productive</span>
+              <button type="button" data-mod="oee" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+              <button type="button" data-mod="oee" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+            </div>
+          </div>
+          <div class="ind-well p-2">
+            <svg id="svg-oee" viewBox="0 0 960 390" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+        <!-- Multi-Shift Trend SVG (Shift Log Mode) -->
+        <div id="oee-trend-card" class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Multi-Shift OEE Trend</span>
+            <div class="flex flex-wrap items-center gap-4">
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-emerald-mint"></span> OEE</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-crimson"></span> Avail</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-copper"></span> Perf</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-magenta"></span> Qual</span>
+            </div>
+          </div>
+          <div class="ind-well p-2">
+            <svg id="svg-oee-trend" viewBox="0 0 960 256" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+        <!-- Shift Log Table -->
+        <div id="oee-log-table-card" class="ind-card p-4 space-y-3 no-print">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold uppercase text-rose-dusty">Shift Production Log</h3>
+            <button type="button" id="btn-oee-add-row" class="ind-btn ind-btn-primary">Add Shift Row</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-navy-border text-xs font-mono uppercase text-teal-slate">
+                  <th class="py-2 pr-2">Date</th>
+                  <th class="py-2 px-1">Shift</th>
+                  <th class="py-2 px-1">Line</th>
+                  <th class="py-2 px-1">Plan (m)</th>
+                  <th class="py-2 px-1">Down (m)</th>
+                  <th class="py-2 px-1">Cycle (s)</th>
+                  <th class="py-2 px-1">Output</th>
+                  <th class="py-2 px-1">Scrap</th>
+                  <th class="py-2 px-2">OEE</th>
+                  <th class="py-2 pl-1 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="oee-log-body" class="divide-y divide-navy-border text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Single Shift Sliders -->
+        <div id="oee-single-controls" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 no-print">
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="oee-in-shift" class="text-xs font-bold uppercase text-rose-dusty">Shift (min)</label>
+              <input id="oee-in-shift" type="number" min="60" max="1440" step="10" class="ind-input w-24 text-right" />
+            </div>
+            <input id="oee-sl-shift" type="range" min="60" max="1440" step="10" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="oee-in-down" class="text-xs font-bold uppercase text-rose-dusty">Downtime (min)</label>
+              <input id="oee-in-down" type="number" min="0" max="600" step="1" class="ind-input w-24 text-right" />
+            </div>
+            <input id="oee-sl-down" type="range" min="0" max="600" step="1" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="oee-in-cycle" class="text-xs font-bold uppercase text-rose-dusty">Cycle (sec)</label>
+              <input id="oee-in-cycle" type="number" min="1" max="300" step="1" class="ind-input w-24 text-right" />
+            </div>
+            <input id="oee-sl-cycle" type="range" min="1" max="300" step="1" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="oee-in-output" class="text-xs font-bold uppercase text-rose-dusty">Output (units)</label>
+              <input id="oee-in-output" type="number" min="0" max="5000" step="5" class="ind-input w-24 text-right" />
+            </div>
+            <input id="oee-sl-output" type="range" min="0" max="5000" step="5" class="ind-slider" />
+          </div>
+
+          <div class="ind-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="oee-in-scrap" class="text-xs font-bold uppercase text-rose-dusty">Scrap (units)</label>
+              <input id="oee-in-scrap" type="number" min="0" max="1000" step="1" class="ind-input w-24 text-right" />
+            </div>
+            <input id="oee-sl-scrap" type="range" min="0" max="1000" step="1" class="ind-slider" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 3: TAKT (Yamazumi Line Balancing)                          -->
+      <!-- ================================================================= -->
+      <section id="module-takt" class="module-section hidden space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">Takt</h2>
+            <p class="text-xs text-icemint mt-0.5">Yamazumi workstation cycle balance against customer demand pace</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-takt"></span>
+              <button type="button" data-raw-mod="takt" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 no-print">
+            <button type="button" id="btn-takt-import" class="ind-btn ind-btn-primary">Import Stations</button>
+            <button type="button" id="btn-takt-to-ishikawa" class="ind-btn">Bottleneck → Ishikawa</button>
+            <div class="flex items-center gap-2">
+              <label for="takt-in-avail" class="text-xs font-bold uppercase text-rose-dusty">Available (s)</label>
+              <input id="takt-in-avail" type="number" min="600" max="86400" step="300" class="ind-input w-28 text-right" />
+            </div>
+            <div class="flex items-center gap-2">
+              <label for="takt-in-demand" class="text-xs font-bold uppercase text-rose-dusty">Demand (u)</label>
+              <input id="takt-in-demand" type="number" min="1" max="10000" step="10" class="ind-input w-24 text-right" />
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="ind-card p-4 border-magenta">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Takt</span>
+            <div id="takt-val-takt" class="font-mono text-2xl font-bold text-magenta mt-1">60.0s</div>
+            <div class="font-mono text-[11px] text-teal-slate mt-1">Target Cycle Pace</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Bottleneck</span>
+            <div id="takt-val-bottle" class="font-mono text-2xl font-bold text-crimson mt-1">70.0s</div>
+            <div id="takt-sub-bottle" class="font-mono text-[11px] text-icemint mt-1">Machining</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Efficiency</span>
+            <div id="takt-val-eff" class="font-mono text-2xl font-bold text-emerald-mint mt-1">74.3%</div>
+            <div class="font-mono text-[11px] text-teal-slate mt-1">Line Balance Index</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Headcount</span>
+            <div id="takt-val-head" class="font-mono text-2xl font-bold text-icemint mt-1">4.33</div>
+            <div id="takt-sub-head" class="font-mono text-[11px] text-teal-slate mt-1">Minimum Operators</div>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Yamazumi Balance Chart</span>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-emerald-mint"></span> VA</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-teal-slate"></span> BNVA</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-crimson"></span> Waste</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-magenta"></span> Takt</span>
+              <button type="button" data-mod="takt" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+              <button type="button" data-mod="takt" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+            </div>
+          </div>
+          <div class="ind-well p-2">
+            <svg id="svg-takt" viewBox="0 0 960 390" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3 no-print">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold uppercase text-rose-dusty">Workstations</h3>
+            <button type="button" id="btn-takt-add" class="ind-btn ind-btn-primary">Add Station</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-navy-border text-xs font-mono uppercase text-teal-slate">
+                  <th class="py-2 pr-3">Station</th>
+                  <th class="py-2 px-2">VA (s)</th>
+                  <th class="py-2 px-2">BNVA (s)</th>
+                  <th class="py-2 px-2">Waste (s)</th>
+                  <th class="py-2 px-2">Total (s)</th>
+                  <th class="py-2 px-2">Status</th>
+                  <th class="py-2 pl-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="takt-table-body" class="divide-y divide-navy-border text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 4: PARETO (80/20 Defect Analysis)                          -->
+      <!-- ================================================================= -->
+      <section id="module-pareto" class="module-section hidden space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">Pareto</h2>
+            <p class="text-xs text-icemint mt-0.5">Group raw defect/downtime logs by frequency or cost/duration to isolate vital drivers</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-pareto"></span>
+              <button type="button" data-raw-mod="pareto" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2.5 no-print">
+            <div class="mode-switch" role="group" aria-label="Pareto Mode">
+              <button type="button" id="par-mode-events" class="mode-pill active">Event Log</button>
+              <button type="button" id="par-mode-summary" class="mode-pill">Summary Table</button>
+            </div>
+            <div id="par-events-toolbar" class="flex flex-wrap items-center gap-2">
+              <div class="mode-switch" role="group" aria-label="Pareto Metric">
+                <button type="button" id="par-metric-count" class="mode-pill active">Count</button>
+                <button type="button" id="par-metric-weight" class="mode-pill">Weighted</button>
+              </div>
+              <select id="par-filter-group" aria-label="Filter Group" class="ind-input ind-input-text text-xs py-1.5"></select>
+              <button type="button" id="btn-par-import" class="ind-btn ind-btn-primary">Import Defect Log</button>
+            </div>
+            <button type="button" id="btn-par-to-ishikawa" class="ind-btn">Top Driver → Ishikawa</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Total</span>
+            <div id="par-val-total" class="font-mono text-2xl font-bold text-icemint mt-1">246</div>
+            <div class="font-mono text-[11px] text-teal-slate mt-1">Aggregated Impact</div>
+          </div>
+          <div class="ind-card p-4 border-magenta">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Vital</span>
+            <div id="par-val-vital" class="font-mono text-2xl font-bold text-magenta mt-1">4</div>
+            <div id="par-sub-vital" class="font-mono text-[11px] text-teal-slate mt-1">Categories Driving 80%</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Top</span>
+            <div id="par-val-top" class="font-mono text-2xl font-bold text-crimson mt-1">Burr</div>
+            <div id="par-sub-top" class="font-mono text-[11px] text-icemint mt-1">34.1% Share</div>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Defect Distribution</span>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-crimson"></span> Top</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-indigo-royal"></span> Vital Few</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-teal-slate"></span> Trivial Many</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-magenta"></span> Cumulative</span>
+              <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-copper"></span> 80% Line</span>
+              <button type="button" data-mod="pareto" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+              <button type="button" data-mod="pareto" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+            </div>
+          </div>
+          <div class="ind-well p-2 relative">
+            <svg id="svg-pareto" viewBox="0 0 960 390" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div id="pareto-tooltip" class="hidden pointer-events-none absolute top-4 right-4 bg-navy-panel border-2 border-magenta px-3 py-2 rounded-md font-mono text-xs text-rose-dusty"></div>
+          </div>
+        </div>
+
+        <!-- Ranked Categories Table -->
+        <div class="ind-card p-4 space-y-3 no-print">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold uppercase text-rose-dusty">Ranked Categories</h3>
+            <button type="button" id="btn-par-add" class="hidden ind-btn ind-btn-primary">Add Row</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-navy-border text-xs font-mono uppercase text-teal-slate">
+                  <th class="py-2 pr-3">Category</th>
+                  <th class="py-2 px-2">Value</th>
+                  <th class="py-2 px-2">Share</th>
+                  <th class="py-2 px-2">Cumulative</th>
+                  <th class="py-2 px-2">Class</th>
+                  <th class="py-2 pl-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="pareto-table-body" class="divide-y divide-navy-border text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Raw Event Log Card (Event Log Mode) -->
+        <div id="par-events-card" class="ind-card p-4 space-y-3 no-print">
+          <h3 class="text-sm font-bold uppercase text-rose-dusty">Raw Defect / Downtime Events</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            <input id="par-ev-cat" type="text" placeholder="Defect / Reason (e.g. Burr)" class="ind-input ind-input-text sm:col-span-5" />
+            <input id="par-ev-weight" type="number" min="0" step="any" placeholder="Weight (Cost / Min)" value="50" class="ind-input sm:col-span-2" />
+            <input id="par-ev-group" type="text" placeholder="Line / Group" class="ind-input ind-input-text sm:col-span-3" />
+            <button type="button" id="btn-par-ev-add" class="ind-btn ind-btn-primary sm:col-span-2">Log Event</button>
+          </div>
+          <div class="overflow-x-auto max-h-60 overflow-y-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-navy-border text-xs font-mono uppercase text-teal-slate">
+                  <th class="py-1.5 pr-2">Category</th>
+                  <th class="py-1.5 px-2">Weight</th>
+                  <th class="py-1.5 px-2">Group</th>
+                  <th class="py-1.5 pl-2 text-right">Del</th>
+                </tr>
+              </thead>
+              <tbody id="par-events-body" class="divide-y divide-navy-border"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 5: VSM (Value Stream Mapping)                              -->
+      <!-- ================================================================= -->
+      <section id="module-vsm" class="module-section hidden space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">VSM</h2>
+            <p class="text-xs text-icemint mt-0.5">End-to-end production process boxes, inventory queues, sawtooth lead time ladder</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-vsm"></span>
+              <button type="button" data-raw-mod="vsm" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 no-print">
+            <button type="button" id="btn-vsm-import" class="ind-btn ind-btn-primary">Import Steps</button>
+            <button type="button" id="btn-vsm-to-takt" class="ind-btn ind-btn-ok">Sync Steps → Takt</button>
+            <button type="button" id="btn-vsm-to-ishikawa" class="ind-btn">Bottleneck → Ishikawa</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Lead Time</span>
+            <div id="vsm-val-lead" class="font-mono text-2xl font-bold text-crimson mt-1">18.1h</div>
+            <div id="vsm-sub-lead" class="font-mono text-[11px] text-teal-slate mt-1">0.75 Days</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Value Time</span>
+            <div id="vsm-val-va" class="font-mono text-2xl font-bold text-emerald-mint mt-1">265s</div>
+            <div id="vsm-sub-va" class="font-mono text-[11px] text-teal-slate mt-1">4.42 Min</div>
+          </div>
+          <div class="ind-card p-4 border-magenta">
+            <span class="text-xs font-bold uppercase text-rose-dusty">PCE</span>
+            <div id="vsm-val-pce" class="font-mono text-2xl font-bold text-magenta mt-1">0.41%</div>
+            <div class="font-mono text-[11px] text-teal-slate mt-1">Process Cycle Efficiency</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Steps</span>
+            <div id="vsm-val-steps" class="font-mono text-2xl font-bold text-icemint mt-1">4</div>
+            <div id="vsm-sub-ops" class="font-mono text-[11px] text-teal-slate mt-1">6 Operators</div>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Process Flow Map</span>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-copper"></span> Queue Wait</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-crimson"></span> Wait Tooth</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-emerald-mint"></span> Value Trough</span>
+              <button type="button" data-mod="vsm" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+              <button type="button" data-mod="vsm" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+            </div>
+          </div>
+          <div class="ind-well p-2">
+            <svg id="svg-vsm" viewBox="0 0 1000 420" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3 no-print">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold uppercase text-rose-dusty">Process Chain</h3>
+            <button type="button" id="btn-vsm-add" class="ind-btn ind-btn-primary">Add Step</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-navy-border text-xs font-mono uppercase text-teal-slate">
+                  <th class="py-2 pr-2">Name</th>
+                  <th class="py-2 px-2">Cycle (s)</th>
+                  <th class="py-2 px-2">Changeover (m)</th>
+                  <th class="py-2 px-2">Uptime (%)</th>
+                  <th class="py-2 px-2">Operators</th>
+                  <th class="py-2 px-2">Queue (h)</th>
+                  <th class="py-2 pl-2 text-right">Order</th>
+                </tr>
+              </thead>
+              <tbody id="vsm-table-body" class="divide-y divide-navy-border text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 6: 5S (Workplace Organization Audit)                       -->
+      <!-- ================================================================= -->
+      <section id="module-fives" class="module-section hidden space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">5S</h2>
+            <p class="text-xs text-icemint mt-0.5">Workplace discipline audit scoring matrix, radar benchmark, corrective log</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-fives"></span>
+              <button type="button" data-raw-mod="fives" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 no-print">
+            <label for="fives-sl-target" class="text-xs font-bold uppercase text-rose-dusty">Target</label>
+            <input id="fives-sl-target" type="range" min="1" max="5" step="0.1" class="ind-slider w-32" />
+            <span id="fives-lbl-target" class="font-mono text-sm font-bold text-magenta">4.0</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="ind-card p-4 border-magenta">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Score</span>
+            <div id="fives-val-score" class="font-mono text-2xl font-bold text-emerald-mint mt-1">78.0%</div>
+            <div id="fives-sub-score" class="font-mono text-[11px] text-teal-slate mt-1">3.90 Mean</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Target</span>
+            <div id="fives-val-target" class="font-mono text-2xl font-bold text-magenta mt-1">4.00</div>
+            <div id="fives-sub-target" class="font-mono text-[11px] text-teal-slate mt-1">Benchmark Scale</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Lowest</span>
+            <div id="fives-val-lowest" class="font-mono text-2xl font-bold text-copper mt-1">Sustain</div>
+            <div id="fives-sub-lowest" class="font-mono text-[11px] text-icemint mt-1">3.25 Mean</div>
+          </div>
+          <div class="ind-card p-4">
+            <span class="text-xs font-bold uppercase text-rose-dusty">Actions</span>
+            <div id="fives-val-actions" class="font-mono text-2xl font-bold text-crimson mt-1">2</div>
+            <div class="font-mono text-[11px] text-teal-slate mt-1">Open Items</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
+          <div class="xl:col-span-5 ind-card p-4 space-y-3">
+            <div class="flex items-center justify-between text-xs font-mono">
+              <span class="font-bold text-rose-dusty uppercase">Pillar Radar</span>
+              <div class="flex items-center gap-2">
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-emerald-mint"></span> Actual</span>
+                <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 inline-block bg-magenta"></span> Target</span>
+                <button type="button" data-mod="fives" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+                <button type="button" data-mod="fives" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+              </div>
+            </div>
+            <div class="ind-well p-2">
+              <svg id="svg-fives" viewBox="0 0 520 420" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
+
+          <div class="xl:col-span-7 ind-card p-4 space-y-4">
+            <h3 class="text-sm font-bold uppercase text-rose-dusty">Audit Matrix</h3>
+            <div id="fives-matrix" class="space-y-4 max-h-[460px] overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3 no-print">
+          <h3 class="text-sm font-bold uppercase text-rose-dusty">Action Log</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            <select id="fives-act-pillar" class="ind-input ind-input-text sm:col-span-2">
+              <option value="Sort">Sort</option>
+              <option value="Straighten">Straighten</option>
+              <option value="Shine">Shine</option>
+              <option value="Standardize">Standardize</option>
+              <option value="Sustain">Sustain</option>
+            </select>
+            <input id="fives-act-desc" type="text" placeholder="Corrective action item" class="ind-input ind-input-text sm:col-span-6" />
+            <input id="fives-act-owner" type="text" placeholder="Owner" class="ind-input ind-input-text sm:col-span-2" />
+            <button type="button" id="btn-fives-add-action" class="ind-btn ind-btn-primary sm:col-span-2">Add Action</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-navy-border text-xs font-mono uppercase text-teal-slate">
+                  <th class="py-2 pr-2">Pillar</th>
+                  <th class="py-2 px-2">Item</th>
+                  <th class="py-2 px-2">Owner</th>
+                  <th class="py-2 px-2">Status</th>
+                  <th class="py-2 pl-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="fives-actions-body" class="divide-y divide-navy-border text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 7: ISHIKAWA (Fishbone Root Cause Diagram)                  -->
+      <!-- ================================================================= -->
+      <section id="module-ishikawa" class="module-section hidden space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-rose-dusty">Ishikawa</h2>
+            <p class="text-xs text-icemint mt-0.5">Structured six-rib fishbone cause mapping with root suspect highlighting</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              <span id="src-badge-ishikawa"></span>
+              <button type="button" data-raw-mod="ishikawa" class="ind-btn py-0.5 px-2 text-[11px] btn-view-raw no-print">Raw Data</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 no-print w-full sm:w-auto">
+            <label for="ish-in-problem" class="text-xs font-bold uppercase text-rose-dusty shrink-0">Problem</label>
+            <input id="ish-in-problem" type="text" class="ind-input ind-input-text w-full sm:w-72" />
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span class="font-bold text-rose-dusty uppercase">Fishbone Diagram</span>
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-icemint"></span> Factor</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 inline-block bg-magenta"></span> Root Suspect</span>
+              <button type="button" data-mod="ishikawa" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-png no-print">PNG</button>
+              <button type="button" data-mod="ishikawa" class="ind-btn py-0.5 px-2 text-[11px] quick-chart-svg no-print">SVG</button>
+            </div>
+          </div>
+          <div class="ind-well p-2">
+            <svg id="svg-ishikawa" viewBox="0 0 1000 480" class="w-full h-auto block" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+        <div class="ind-card p-4 space-y-4 no-print">
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            <select id="ish-sel-rib" class="ind-input ind-input-text sm:col-span-3">
+              <option value="Man">Man</option>
+              <option value="Machine">Machine</option>
+              <option value="Method">Method</option>
+              <option value="Material">Material</option>
+              <option value="Measurement">Measurement</option>
+              <option value="Environment">Environment</option>
+            </select>
+            <input id="ish-in-cause" type="text" placeholder="Enter cause factor" class="ind-input ind-input-text sm:col-span-7" />
+            <button type="button" id="btn-ish-add" class="ind-btn ind-btn-primary sm:col-span-2">Add Cause</button>
+          </div>
+          <div id="ish-ribs-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MODULE 8: DATA & EXPORT HUB                                       -->
+      <!-- ================================================================= -->
+      <section id="module-export" class="module-section hidden space-y-5">
+        <div>
+          <h2 class="text-xl font-bold text-rose-dusty">Data &amp; Export Hub</h2>
+          <p class="text-xs text-icemint mt-0.5">Inspect module data sources, view raw tables, load demo datasets, or export charts and reports</p>
+        </div>
+
+        <!-- Module Data Sources & Raw Table Overview -->
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
+          <div class="xl:col-span-8 ind-card p-5 space-y-3">
+            <div class="flex items-center justify-between border-b-2 border-navy-border pb-2">
+              <h3 class="text-base font-bold uppercase text-rose-dusty">Module Data Sources</h3>
+              <span class="font-mono text-xs text-teal-slate">Provenance &amp; Raw Tables</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-navy-border text-xs font-mono uppercase text-teal-slate">
+                    <th class="py-1.5 pr-3">Module</th>
+                    <th class="py-1.5 px-2">Active Data Source</th>
+                    <th class="py-1.5 pl-2 text-right">Inspect / Replace</th>
+                  </tr>
+                </thead>
+                <tbody id="exp-sources-body" class="divide-y divide-navy-border"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="xl:col-span-4 ind-card p-5 space-y-4 flex flex-col justify-between">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between border-b-2 border-navy-border pb-2">
+                <h3 class="text-base font-bold uppercase text-rose-dusty">Demo Scenarios</h3>
+                <span class="font-mono text-xs text-teal-slate">Sample Data</span>
+              </div>
+              <p class="text-xs text-icemint">
+                Load a complete sample factory dataset across all 7 modules to explore the workbench.
+              </p>
+              <select id="exp-scenario-select" aria-label="Sample Factory Scenario" class="ind-input ind-input-text w-full text-xs">
+                <option value="cnc">Precision CNC Cell</option>
+                <option value="smt">SMT Electronics Line</option>
+                <option value="packaging">High-Speed Packaging</option>
+              </select>
+              <button type="button" id="btn-exp-load-scenario" class="ind-btn w-full">Load Demo Scenario</button>
+            </div>
+            <div class="pt-3 border-t border-navy-border flex items-center justify-between text-xs font-mono text-teal-slate">
+              <span>Storage: <strong id="exp-storage-status" class="text-emerald-mint">Synced</strong></span>
+              <span><span id="exp-clock">00:00:00</span> · <span id="exp-date">2026</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <!-- Card 1: Workspace -->
+          <div class="ind-card p-5 space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-navy-border pb-2">
+              <h3 class="text-base font-bold uppercase text-rose-dusty">Workspace</h3>
+              <span class="font-mono text-xs text-teal-slate">JSON Snapshot</span>
+            </div>
+            <p class="text-xs text-icemint">
+              Save complete state of all 7 modules to a single JSON file, restore from disk, or reset factory defaults.
+            </p>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <button type="button" id="exp-btn-json-export" class="ind-btn ind-btn-primary">Download JSON</button>
+              <button type="button" id="exp-btn-json-import" class="ind-btn">Import JSON</button>
+              <button type="button" id="exp-btn-reset" class="ind-btn ind-btn-danger">Reset Defaults</button>
+            </div>
+            <div id="exp-reset-confirm" class="hidden p-3 rounded-md bg-navy-canvas border-2 border-crimson flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-mono text-rose-dusty">Confirm factory reset of all modules?</span>
+              <div class="flex items-center gap-2">
+                <button type="button" id="exp-btn-reset-yes" class="ind-btn ind-btn-danger">Confirm</button>
+                <button type="button" id="exp-btn-reset-no" class="ind-btn">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Executive Reports -->
+          <div class="ind-card p-5 space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-navy-border pb-2">
+              <h3 class="text-base font-bold uppercase text-rose-dusty">Executive Reports</h3>
+              <span class="font-mono text-xs text-teal-slate">HTML / Markdown / PDF</span>
+            </div>
+            <p class="text-xs text-icemint">
+              Generate a standalone styled HTML bundle, paste-ready Markdown summary, or light-mode Print-to-PDF report.
+            </p>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <button type="button" id="exp-btn-html" class="ind-btn ind-btn-ok">Download HTML</button>
+              <button type="button" id="exp-btn-md-download" class="ind-btn ind-btn-primary">Download .MD</button>
+              <button type="button" id="exp-btn-md-copy" class="ind-btn">Copy Markdown</button>
+              <button type="button" id="exp-btn-print" class="ind-btn">Print / PDF</button>
+            </div>
+          </div>
+
+          <!-- Card 3: Tables (CSV + Copy TSV) -->
+          <div class="ind-card p-5 space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-navy-border pb-2">
+              <h3 class="text-base font-bold uppercase text-rose-dusty">Tables (CSV &amp; Clipboard TSV)</h3>
+              <span class="font-mono text-xs text-teal-slate">Excel Ready</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="capability">CSV Cap</button>
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="oee">CSV OEE</button>
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="takt">CSV Takt</button>
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="pareto">CSV Pareto</button>
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="vsm">CSV VSM</button>
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="fives">CSV 5S</button>
+              <button type="button" class="ind-btn exp-csv-btn" data-csv="ishikawa">CSV Ishikawa</button>
+              <button type="button" class="ind-btn ind-btn-primary exp-csv-btn" data-csv="all">All CSV</button>
+            </div>
+            <div class="pt-2 border-t border-navy-border flex flex-wrap items-center gap-2">
+              <span class="text-xs font-mono text-teal-slate">Copy TSV:</span>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-tsv-btn" data-tsv="capability">Cap</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-tsv-btn" data-tsv="oee">OEE</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-tsv-btn" data-tsv="takt">Takt</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-tsv-btn" data-tsv="pareto">Pareto</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-tsv-btn" data-tsv="vsm">VSM</button>
+            </div>
+          </div>
+
+          <!-- Card 4: Diagrams (SVG & PNG) -->
+          <div class="ind-card p-5 space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-navy-border pb-2">
+              <h3 class="text-base font-bold uppercase text-rose-dusty">Charts &amp; Diagrams</h3>
+              <span class="font-mono text-xs text-teal-slate">SVG &amp; 2x PNG</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="capability">PNG Cap</button>
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="oee">PNG OEE</button>
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="takt">PNG Takt</button>
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="pareto">PNG Pareto</button>
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="vsm">PNG VSM</button>
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="fives">PNG 5S</button>
+              <button type="button" class="ind-btn ind-btn-ok exp-png-btn" data-png="ishikawa">PNG Fishbone</button>
+            </div>
+            <div class="pt-2 border-t border-navy-border flex flex-wrap items-center gap-2">
+              <span class="text-xs font-mono text-teal-slate">Vector SVG:</span>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="capability">Cap</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="oee">OEE</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="takt">Takt</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="pareto">Pareto</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="vsm">VSM</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="fives">5S</button>
+              <button type="button" class="ind-btn py-1 px-2 text-xs exp-svg-btn" data-svg="ishikawa">Ishikawa</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
